@@ -11,6 +11,8 @@ import Tetris
 
 
 newtype Timer = Timer Int
+type Grid a = [[a]]
+type GameGrid = Grid Element
 
 
 main :: IO ()
@@ -31,10 +33,14 @@ setup :: Window -> UI ()
 setup window = do
     beginning <- liftIO $ newGame <$> getStdGen <*> pure (BW 10, BH 20)
     let board = tBoard beginning
-    canvas <- createCanvas board
-    getBody window #+ [return canvas]
 
-    drawBoard board canvas
+    let squares = createGrid board
+    let table = grid squares # set UI.style [("margin", "auto")]
+    getBody window #+ [container #+ [table]]
+
+    gameGrid <- sequence $ fmap sequence squares
+
+    drawGame beginning gameGrid
 
     (timer, event) <- window # every 1000
     body <- getBody window
@@ -42,7 +48,7 @@ setup window = do
     let timerReactions = fmap reactToTimer event
     let allEvents = unionWith const timerReactions keyReactions
     tetrisEvents <- accumE beginning allEvents
-    onEvent tetrisEvents (\t -> drawGame t canvas)
+    onEvent tetrisEvents (\t -> drawGame t gameGrid)
 
 
 every :: Int -> Window -> UI (Timer, Event ())
@@ -77,41 +83,36 @@ reactToKey _ = id
 reactToTimer :: () -> (Tetris -> Tetris)
 reactToTimer () = modifyBoard (moveCurrentPiece Down)
 
-drawGame :: Tetris -> Canvas -> UI ()
+drawGame :: Tetris -> GameGrid -> UI ()
 drawGame t c = drawBoard (tBoard t) c
 
-drawBoard :: Board -> Canvas -> UI ()
-drawBoard board canvas = do
-    clearCanvas canvas
-    drawPiece (currentPiece board) canvas
-    mapM_ (\s -> drawSquare s canvas) (ground board)
+drawBoard :: Board -> GameGrid -> UI ()
+drawBoard board gg = return ()
 
-drawPiece :: Piece -> Canvas -> UI ()
-drawPiece piece canvas = mapM_ (\s -> drawSquare s canvas) $ getSquares piece
+drawPiece :: Piece -> GameGrid -> UI ()
+drawPiece piece gg = mapM_ (\s -> drawSquare s gg) $ getSquares piece
 
-
-createCanvas :: Board -> UI Canvas
-createCanvas board = create (fromIntegral $ boardWidthPx board) (fromIntegral $ boardHeightPx board)
-    where create w h = setProperties w h UI.canvas
-          setProperties w h = set UI.style styles . set UI.height h . set UI.width w
-          styles = [("background-color", "black"), ("margin-left", "auto"), ("margin-right", "auto"), ("display", "block")]
-
-
-drawSquare :: Square -> Canvas -> UI ()
-drawSquare square canvas = do
+drawSquare :: Square -> GameGrid -> UI ()
+drawSquare square gg = do
     let colour = getColourForShape (sOriginalShape square)
-    return canvas # set fillStyle (solidColor colour)
     let (x, y) = sPos square
-    fillSquare ((squareSizePx * fromIntegral x) + 1, (squareSizePx * fromIntegral y) + 1) (squareSizePx - 2) canvas
+    return ()
 
--- O | I | T | J | L | S | Z
-getColourForShape O = RGB 255 0 0
-getColourForShape I = RGB 0 255 0
-getColourForShape T = RGB 0 0 255
-getColourForShape J = RGB 255 255 255
-getColourForShape L = RGB 255 255 0
-getColourForShape S = RGB 0 255 255
-getColourForShape Z = RGB 255 0 255
 
-fillSquare :: (Double, Double) -> Double -> Canvas -> UI ()
-fillSquare (x, y) size canvas = fillRect (x, y) size size canvas
+createGrid :: Board -> Grid (UI Element)
+createGrid board = [[buildDiv x y | x <- [0 .. fromBW w - 1]] | y <- [0 .. fromBH h - 1]]
+    where (w, h) = dimensions board
+          buildDiv x y = UI.div # set UI.id_ ("row-" ++ show y ++ "-col-" ++ show x) # set UI.width squareSizePx # set UI.height squareSizePx # set UI.style styles
+          styles = [("background-color", "black"), ("width", "35px"), ("height", "35px"), ("display", "inline-block")]
+
+
+container = UI.div # set UI.style [("font-size", "0pt")]
+
+
+getColourForShape O = "red"
+getColourForShape I = "green"
+getColourForShape T = "blue"
+getColourForShape J = "white"
+getColourForShape L = "cyan"
+getColourForShape S = "yellow"
+getColourForShape Z = "magenta"

@@ -15,7 +15,7 @@ data Board = Board {
     dimensions :: BoardDimensions
 }
 
-data Piece = Piece Shape Rotation Position deriving (Show, Eq)
+data Piece = Piece { pShape :: Shape, pRot :: Rotation, pPos :: Position } deriving (Show, Eq)
 
 data Shape = O | I | T | J | L | S | Z deriving (Show, Enum, Bounded, Eq)
 
@@ -62,18 +62,11 @@ modifyBoard :: (Board -> Board) -> (Tetris -> Tetris)
 modifyBoard f t = t { tBoard = f (tBoard t) }
 
 
-tick :: Tetris -> Tetris
-tick (Tetris s l b) = Tetris newScore newLevel newWorld
-    where newScore = undefined
-          newLevel = if shouldLevelUp then l + 1 else l
-          newWorld = moveCurrentPiece Down b
-          shouldLevelUp = undefined
-
-freezePieceAndGetNext :: Board -> (Board, Int)
+freezePieceAndGetNext :: Board -> Board
 freezePieceAndGetNext b = let nextPiece:rest = pieceStream b
-                              (newGround, numberOfLinesRemoved) = removeFullRows (dimensions b) groundWithNewPiece
+                              newGround = removeFullRows (dimensions b) groundWithNewPiece
                               groundWithNewPiece = getSquares (currentPiece b) ++ ground b
-                          in (b { currentPiece = nextPiece, pieceStream = rest, ground = newGround}, numberOfLinesRemoved)
+                          in b { currentPiece = nextPiece, pieceStream = rest, ground = newGround }
 
 currentPieceIsTouchingGround :: Board -> Bool
 currentPieceIsTouchingGround b = any (`isTouchingGround` b) (getSquares $ currentPiece b)
@@ -82,32 +75,52 @@ isTouchingGround :: Square -> Board -> Bool
 isTouchingGround s1 b = any (\s2 -> (sPos s1) `isDirectlyAbove` (sPos s2)) (ground b) || (sPos s1) `isAtBottomOf` b
     where isDirectlyAbove p1 p2 = p1 == (posUp 1 p2)
           isAtBottomOf p b = fromRow (snd p) == fromBH (snd $ dimensions b) - 1
+isLeftOfGround :: Square -> Board -> Bool
+isLeftOfGround s1 b = any (\s2 -> (sPos s1) `isDirectlyLeft` (sPos s2)) (ground b)
+    where isDirectlyLeft p1 p2 = p1 == (posLeft 1 p2)
+isRightOfGround :: Square -> Board -> Bool
+isRightOfGround s1 b = any (\s2 -> (sPos s1) `isDirectlyRight` (sPos s2)) (ground b)
+    where isDirectlyRight p1 p2 = p1 == (posRight 1 p2)
 
 
 moveCurrentPiece :: Direction -> Board -> Board
-moveCurrentPiece Right b = b { currentPiece = moveRight (currentPiece b) }
-moveCurrentPiece Left b = b { currentPiece = moveLeft (currentPiece b) }
+moveCurrentPiece Right b = if currentPieceCanBeMovedRight b
+                           then b { currentPiece = moveRight (currentPiece b) }
+                           else b
+moveCurrentPiece Left b = if currentPieceCanBeMovedLeft b
+                          then b { currentPiece = moveLeft (currentPiece b) }
+                          else b
 moveCurrentPiece Down b = if currentPieceIsTouchingGround b
-                          then fst $ freezePieceAndGetNext b
+                          then freezePieceAndGetNext b
                           else b { currentPiece = moveDown (currentPiece b) }
 
 rotateCurrentPiece :: Board -> Board
 rotateCurrentPiece b = b { currentPiece = rotateClockwise (currentPiece b) }
 
 
+currentPieceCanBeMovedLeft :: Board -> Bool
+currentPieceCanBeMovedLeft b = not $ any (\s -> s `isRightOfEdge` b || s `isRightOfGround` b) (getSquares $ currentPiece b)
+    where isRightOfEdge square board = fromCol (fst (sPos square)) == 0
+
+
+currentPieceCanBeMovedRight :: Board -> Bool
+currentPieceCanBeMovedRight b = not $ any (\s -> s `isLeftOfEdge` b || s `isLeftOfGround` b) (getSquares $ currentPiece b)
+    where isLeftOfEdge square board = fromCol (fst (sPos square)) == fromBW (fst (dimensions b)) - 1
+
+
 moveDown :: Piece -> Piece
-moveDown (Piece s r p) = Piece s r (posDown 1 p)
+moveDown p = p { pPos = posDown 1 (pPos p) }
 moveLeft :: Piece -> Piece
-moveLeft (Piece s r p) = Piece s r (posLeft 1 p)
+moveLeft p = p { pPos = posLeft 1 (pPos p) }
 moveRight :: Piece -> Piece
-moveRight (Piece s r p) = Piece s r (posRight 1 p)
+moveRight p = p { pPos = posRight 1 (pPos p) }
 
 rotateClockwise :: Piece -> Piece
 rotateClockwise (Piece s r p) = Piece s (rotClockwise r) p
 
 
-removeFullRows :: BoardDimensions -> [Square] -> ([Square], Int)
-removeFullRows dims squares = (removeRows ys squares, length ys)
+removeFullRows :: BoardDimensions -> [Square] -> [Square]
+removeFullRows dims squares = removeRows ys squares
     where ys = fullRows dims (map sPos squares)
 
 removeRows :: [Row] -> [Square] -> [Square]

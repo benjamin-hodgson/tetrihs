@@ -17,6 +17,10 @@ prop_moveLeftPreservesRotation p = rotationsAreEqual p (moveLeft p)
 prop_moveRightPreservesRotation p = rotationsAreEqual p (moveRight p)
 prop_moveDownPreservesRotation p = rotationsAreEqual p (moveDown p)
 
+prop_moveLeftPreservesRow p = rowsAreEqual p (moveLeft p)
+prop_moveRightPreservesRow p = rowsAreEqual p (moveRight p)
+prop_moveDownPreservesCol p = colsAreEqual p (moveDown p)
+
 prop_moveLeftThenRightReturnsSamePiece p = (moveLeft . moveRight) p == p
 
 prop_rotateClockwisePreservesShape p = shapesAreEqual p (rotateClockwise p)
@@ -38,7 +42,7 @@ prop_removeRowAlwaysLowersPeak r squares = squares /= [] && any (\s -> sPos s `i
     where getPeakRow = minimum . map (snd . sPos)
 
 
-prop_removeTwoFullRows = (removeFullRows (BW 2, BH 3) inputSquares) === ([], 2)
+prop_removeTwoFullRows = (removeFullRows (BW 2, BH 3) inputSquares) === []
     where inputSquares = [Square O (Col 0, Row 0), Square O (Col 1, Row 0), Square O (Col 0, Row 1), Square O (Col 1, Row 1)]
 
 prop_queryTwoFullRows = fullRows (BW 2, BH 3) [(Col 0, Row 0), (Col 1, Row 0), (Col 0, Row 1), (Col 1, Row 1)] === [0, 1]
@@ -47,6 +51,8 @@ prop_queryTwoFullRows = fullRows (BW 2, BH 3) [(Col 0, Row 0), (Col 1, Row 0), (
 shapesAreEqual (Piece s1 _ _) (Piece s2 _ _) = s1 == s2
 rotationsAreEqual (Piece _ r1 _) (Piece _ r2 _) = r1 == r2
 positionsAreEqual (Piece _ _ p1) (Piece _ _ p2) = p1 == p2
+colsAreEqual (Piece _ _ (c1, _)) (Piece _ _ (c2, _)) = c1 == c2
+rowsAreEqual (Piece _ _ (_, r1)) (Piece _ _ (_, r2)) = r1 == r2
 
 
 isSorted :: (Ord a) => [a] -> Bool
