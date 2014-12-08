@@ -48,6 +48,13 @@ prop_removeTwoFullRows = (removeFullRows (BW 2, BH 3) inputSquares) === []
 prop_queryTwoFullRows = fullRows (BW 2, BH 3) [(Col 0, Row 0), (Col 1, Row 0), (Col 0, Row 1), (Col 1, Row 1)] === [0, 1]
 
 
+prop_noDifferencesOfSameList xs = differences xs xs == ([],[])
+prop_differencesWhenRightListIsEmpty xs = differences xs [] == (xs, [])
+prop_differencesWhenLeftListIsEmpty xs = differences [] xs == ([], xs)
+prop_removedItemsIsSubsetOfLeft xs ys = fst (differences xs ys) `isSubsetOf` xs
+prop_addedItemsIsSubsetOfRight xs ys = snd (differences xs ys) `isSubsetOf` ys
+
+
 shapesAreEqual (Piece s1 _ _) (Piece s2 _ _) = s1 == s2
 rotationsAreEqual (Piece _ r1 _) (Piece _ r2 _) = r1 == r2
 positionsAreEqual (Piece _ _ p1) (Piece _ _ p2) = p1 == p2
@@ -58,6 +65,8 @@ rowsAreEqual (Piece _ _ (_, r1)) (Piece _ _ (_, r2)) = r1 == r2
 isSorted :: (Ord a) => [a] -> Bool
 isSorted xs = all (\(x, y) -> x < y) $ zip xs (tail xs)
 
+isSubsetOf :: Eq a => [a] -> [a] -> Bool
+xs `isSubsetOf` ys = all (`elem` ys) xs
 
 
 instance Arbitrary Shape where

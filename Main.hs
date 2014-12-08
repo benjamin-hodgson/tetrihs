@@ -6,13 +6,10 @@ import Control.Applicative ((<$>), (<*>), pure)
 import System.Random (getStdGen)
 import Prelude hiding (Left, Right)
 
-
 import Tetris
 
 
 newtype Timer = Timer Int
-type Grid a = [[a]]
-type GameGrid = Grid Element
 
 
 main :: IO ()
@@ -22,7 +19,7 @@ main =  startGUI defaultConfig {
 
 
 squareSizePx :: Num a => a
-squareSizePx = 35
+squareSizePx = 34
 boardWidthPx :: Board -> Int
 boardWidthPx board = squareSizePx * (fromBW $ fst $ dimensions board)
 boardHeightPx :: Board -> Int
@@ -38,17 +35,16 @@ setup window = do
     let table = grid squares # set UI.style [("margin", "auto")]
     getBody window #+ [container #+ [table]]
 
-    gameGrid <- sequence $ fmap sequence squares
-
-    drawGame beginning gameGrid
+    drawFirstFrame beginning window
 
     (timer, event) <- window # every 1000
     body <- getBody window
-    let keyReactions = fmap reactToKey (UI.keydown body)
-    let timerReactions = fmap reactToTimer event
-    let allEvents = unionWith const timerReactions keyReactions
-    tetrisEvents <- accumE beginning allEvents
-    onEvent tetrisEvents (\t -> drawGame t gameGrid)
+    let keyFuncs = fmap reactToKey (UI.keydown body)
+    let timerFuncs = fmap reactToTimer event
+    let allFuncs = unionWith const timerFuncs keyFuncs
+    let pairFuncs = fmap (\f -> \(_, t) -> (t, f t)) allFuncs
+    tetrisEvents <- accumE (undefined, beginning) pairFuncs
+    onEvent tetrisEvents (\(oldT, newT) -> drawGame oldT newT window)
 
 
 every :: Int -> Window -> UI (Timer, Event ())
@@ -72,7 +68,6 @@ cancel :: Timer -> UI ()
 cancel (Timer t) = runFunction $ ffi "clearInterval(%1);" t
 
 
-
 reactToKey :: Int -> Tetris -> Tetris
 reactToKey 37 = modifyBoard (moveCurrentPiece Left)
 reactToKey 38 = modifyBoard rotateCurrentPiece
@@ -83,30 +78,56 @@ reactToKey _ = id
 reactToTimer :: () -> (Tetris -> Tetris)
 reactToTimer () = modifyBoard (moveCurrentPiece Down)
 
-drawGame :: Tetris -> GameGrid -> UI ()
-drawGame t c = drawBoard (tBoard t) c
+drawGame :: Tetris -> Tetris -> Window -> UI ()
+drawGame oldT newT w = let (removedSquares, addedSquares) = differences (getAllSquares $ tBoard oldT) (getAllSquares $ tBoard newT)
+                       in mapM_ (\s -> clearSquare (sPos s) w) removedSquares >> mapM_ (\s -> drawSquare s w) addedSquares
 
-drawBoard :: Board -> GameGrid -> UI ()
-drawBoard board gg = return ()
+drawFirstFrame :: Tetris -> Window -> UI ()
+drawFirstFrame t w = mapM_ (\s -> drawSquare s w) $ getSquares $ currentPiece $ tBoard t
 
-drawPiece :: Piece -> GameGrid -> UI ()
-drawPiece piece gg = mapM_ (\s -> drawSquare s gg) $ getSquares piece
+drawBoard :: Board -> Window -> UI ()
+drawBoard board w = let allSquares = getSquares (currentPiece board) ++ ground board
+                    in clearGrid w >> mapM_ (\s -> drawSquare s w) allSquares
 
-drawSquare :: Square -> GameGrid -> UI ()
-drawSquare square gg = do
-    let colour = getColourForShape (sOriginalShape square)
-    let (x, y) = sPos square
-    return ()
+drawSquare :: Square -> Window -> UI ()
+drawSquare square = let colour = getColourForShape (sOriginalShape square)
+                        pos = sPos square
+                    in setSquareColour colour pos
+
+clearSquare :: Position -> Window -> UI ()
+clearSquare = setSquareColour "black"
+
+setSquareColour :: String -> Position -> Window -> UI ()
+setSquareColour c p w = do
+    maybeEl <- getElementById w $ getSquareId p
+    case maybeEl of
+         Just el -> return el # set UI.style [("background-color", c)] >> return ()
+         Nothing -> return ()
 
 
-createGrid :: Board -> Grid (UI Element)
-createGrid board = [[buildDiv x y | x <- [0 .. fromBW w - 1]] | y <- [0 .. fromBH h - 1]]
+createGrid :: Board -> [[UI Element]]
+createGrid board = [[buildDiv x y | x <- [0 .. Col $ fromBW w - 1]] | y <- [0 .. Row $ fromBH h - 1]]
     where (w, h) = dimensions board
-          buildDiv x y = UI.div # set UI.id_ ("row-" ++ show y ++ "-col-" ++ show x) # set UI.width squareSizePx # set UI.height squareSizePx # set UI.style styles
-          styles = [("background-color", "black"), ("width", "35px"), ("height", "35px"), ("display", "inline-block")]
+          buildDiv x y = UI.div #
+                            set UI.id_ (getSquareId (x, y)) #
+                            set UI.width squareSizePx #
+                            set UI.height squareSizePx #
+                            set UI.style styles #
+                            set UI.class_ "board-square"
+          styles = [("background-color", "black"), ("width", "34px"), ("height", "34px"), ("border", "solid black"), ("border-width", "1px 1px 0px 0px"), ("display", "inline-block")]
+
+
+clearGrid :: Window -> UI ()
+clearGrid w = do
+    els <- getElementsByClassName w "board-square"
+    mapM_ (set UI.style [("background-color", "black")]) (map return els)
 
 
 container = UI.div # set UI.style [("font-size", "0pt")]
+
+
+getSquareId :: Position -> String
+getSquareId (x, y) = "row-" ++ show (fromRow y) ++ "-col-" ++ show (fromCol x)
 
 
 getColourForShape O = "red"

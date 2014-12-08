@@ -5,6 +5,8 @@ module Tetris where
 import System.Random (RandomGen, Random(..))
 import Control.Monad (guard)
 import Prelude hiding (Left, Right)
+import Data.List ((\\))
+
 
 data Tetris = Tetris { tScore :: Score, tLevel :: Level, tBoard :: Board }
 
@@ -60,6 +62,10 @@ newBoardWithPieces dims (first:rest) = Board first rest [] dims
 
 modifyBoard :: (Board -> Board) -> (Tetris -> Tetris)
 modifyBoard f t = t { tBoard = f (tBoard t) }
+
+
+getAllSquares :: Board -> [Square]
+getAllSquares b = getSquares (currentPiece b) ++ ground b
 
 
 freezePieceAndGetNext :: Board -> Board
@@ -221,3 +227,7 @@ rotClockwise North = East
 rotClockwise East = South
 rotClockwise South = West
 rotClockwise West = North
+
+
+differences :: Eq a => [a] -> [a] -> ([a], [a])  -- (items in first but not second, items in second but not first)
+differences l r = (l \\ r, r \\ l)
