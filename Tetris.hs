@@ -12,7 +12,7 @@ import Data.List ((\\))
 -- Tetris, Board, operations
 -----------------------------------------------------------
 
-data Tetris = Tetris { tScore :: Score, tLevel :: Level, tBoard :: Board }
+data Tetris = Tetris { tScore :: Score, tTotalLinesRemoved :: Int, tBoard :: Board }
 
 
 data Board = Board {
@@ -32,7 +32,7 @@ moveCurrentPiece Left t = modifyBoard (\b -> if currentPieceCanBeMovedLeft b
                                              else b) t
 moveCurrentPiece Down t = if currentPieceCanBeMovedDown b
                           then t { tBoard = b { currentPiece = moveDown (currentPiece b) } }
-                          else t { tBoard = bAfterFall, tScore = newScore }
+                          else t { tBoard = bAfterFall, tScore = newScore, tTotalLinesRemoved = tTotalLinesRemoved t + length removedRows }
     where b = tBoard t
           (bAfterFall, removedRows) = endFall b
           newScore = (tScore t) + calculateScore (length removedRows) (tLevel t)
@@ -53,7 +53,12 @@ differences :: Eq a => [a] -> [a] -> ([a], [a])  -- (items in first but not seco
 differences l r = (l \\ r, r \\ l)
 
 
-calculateScore :: Int -> Level -> Score
+tLevel :: Tetris -> Level
+tLevel Tetris { tTotalLinesRemoved = x } = Level $ x `div` 10
+
+
+calculateScore :: Int  -- number of lines removed
+    -> Level -> Score
 calculateScore 0 _ = 0
 calculateScore 1 (Level l) = Score $ fromIntegral $ 40 * (l + 1)
 calculateScore 2 (Level l) = Score $ fromIntegral $ 100 * (l + 1)
@@ -72,7 +77,7 @@ newGameWithShapes :: BoardDimensions -> [Shape] -> Tetris
 newGameWithShapes dims shapes = newGameWithBoard $ newBoardWithShapes dims shapes
 
 newGameWithBoard :: Board -> Tetris
-newGameWithBoard = Tetris (Score 0) (Level 0)
+newGameWithBoard = Tetris (Score 0) 0
 
 newBoardWithShapes :: BoardDimensions -> [Shape] -> Board
 newBoardWithShapes dims shapes = let pieces = map (startingPiece $ fst dims) shapes
