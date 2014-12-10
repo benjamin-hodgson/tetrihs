@@ -1,7 +1,16 @@
 module ThreepennyView (createAndDisplayGrid, drawGame) where
 
 
-import Tetris
+import Tetris (
+    Tetris,
+    Square,
+    Shape(..),
+    Position,
+    BoardDimensions,
+    sOriginalShape, sPos,
+    maxCol, maxRow, fromRow, fromCol,
+    differences, getAllSquares
+    )
 import Graphics.UI.Threepenny.Core
 import qualified Graphics.UI.Threepenny as UI
 
@@ -14,30 +23,28 @@ createAndDisplayGrid dims window = do
         where container = UI.div
 
 createGrid :: BoardDimensions -> [[UI Element]]
-createGrid dims = [[buildDiv x y | x <- [0 .. Col $ fromBW w - 1]] | y <- [0 .. Row $ fromBH h - 1]]
-    where (w, h) = dims
-          buildDiv x y = UI.div #
-                            set UI.id_ (getSquareId (x, y)) #
-                            set UI.style styles #
-                            set UI.class_ "board-square"
+createGrid (w, h) = [[buildDiv x y | x <- [0 .. maxCol w]] | y <- [0 .. maxRow h]]
+    where buildDiv x y = UI.div #
+                         set UI.id_ (getSquareId (x, y)) #
+                         set UI.style styles #
+                         set UI.class_ "board-square"
           styles = [("background-color", "black"), ("width", "34px"), ("height", "34px"), ("border", "solid black"), ("border-width", "1px 1px 0px 0px"), ("display", "inline-block")]
 
 
-getSquareId :: Position -> String
-getSquareId (x, y) = "row-" ++ show (fromRow y) ++ "-col-" ++ show (fromCol x)
-
-
 drawGame :: Tetris -> Tetris -> Window -> UI ()
-drawGame oldT newT w = let (removedSquares, addedSquares) = differences (getAllSquares $ tBoard oldT) (getAllSquares $ tBoard newT)
+drawGame oldT newT w = let (removedSquares, addedSquares) = differences (getAllSquares oldT) (getAllSquares newT)
                        in mapM_ (\s -> clearSquare (sPos s) w) removedSquares >> mapM_ (\s -> drawSquare s w) addedSquares
 
+
 drawSquare :: Square -> Window -> UI ()
-drawSquare square = let colour = getColourForShape (sOriginalShape square)
+drawSquare square = let colour = getCSSColourForShape (sOriginalShape square)
                         pos = sPos square
                     in setSquareColour colour pos
 
+
 clearSquare :: Position -> Window -> UI ()
 clearSquare = setSquareColour "black"
+
 
 setSquareColour :: String -> Position -> Window -> UI ()
 setSquareColour c p w = do
@@ -46,10 +53,16 @@ setSquareColour c p w = do
          Just el -> return el # set UI.style [("background-color", c)] >> return ()
          Nothing -> return ()
 
-getColourForShape O = "red"
-getColourForShape I = "green"
-getColourForShape T = "blue"
-getColourForShape J = "white"
-getColourForShape L = "cyan"
-getColourForShape S = "yellow"
-getColourForShape Z = "magenta"
+
+getSquareId :: Position -> String
+getSquareId (x, y) = "row-" ++ show (fromRow y) ++ "-col-" ++ show (fromCol x)
+
+
+getCSSColourForShape :: Shape -> String
+getCSSColourForShape O = "red"
+getCSSColourForShape I = "green"
+getCSSColourForShape T = "blue"
+getCSSColourForShape J = "white"
+getCSSColourForShape L = "cyan"
+getCSSColourForShape S = "yellow"
+getCSSColourForShape Z = "magenta"
