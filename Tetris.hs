@@ -60,6 +60,10 @@ newBoardWithPieces :: BoardDimensions -> [Piece] -> Board
 newBoardWithPieces dims (first:rest) = Board first rest [] dims
 
 
+-- hack
+emptyGame :: BoardDimensions -> Tetris
+emptyGame = Tetris 0 0 . Board (Piece O North (-10, -10)) [] []
+
 modifyBoard :: (Board -> Board) -> (Tetris -> Tetris)
 modifyBoard f t = t { tBoard = f (tBoard t) }
 
