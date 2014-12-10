@@ -24,15 +24,18 @@ data Board = Board {
 
 
 moveCurrentPiece :: Direction -> Tetris -> Tetris
-moveCurrentPiece Right = modifyBoard (\b -> if currentPieceCanBeMovedRight b
-                                            then b { currentPiece = moveRight (currentPiece b) }
-                                            else b)
-moveCurrentPiece Left = modifyBoard (\b -> if currentPieceCanBeMovedLeft b
-                                           then b { currentPiece = moveLeft (currentPiece b) }
-                                           else b)
-moveCurrentPiece Down = modifyBoard (\b -> if currentPieceCanBeMovedDown b
-                                           then b { currentPiece = moveDown (currentPiece b) }
-                                           else endFall b)
+moveCurrentPiece Right t = modifyBoard (\b -> if currentPieceCanBeMovedRight b
+                                              then b { currentPiece = moveRight (currentPiece b) }
+                                              else b) t
+moveCurrentPiece Left t = modifyBoard (\b -> if currentPieceCanBeMovedLeft b
+                                             then b { currentPiece = moveLeft (currentPiece b) }
+                                             else b) t
+moveCurrentPiece Down t = if currentPieceCanBeMovedDown b
+                          then t { tBoard = b { currentPiece = moveDown (currentPiece b) } }
+                          else t { tBoard = bAfterFall, tScore = newScore }
+    where b = tBoard t
+          (bAfterFall, removedRows) = endFall b
+          newScore = (tScore t) + calculateScore (length removedRows) (tLevel t)
 
 rotateCurrentPiece :: Tetris -> Tetris
 rotateCurrentPiece = modifyBoard (\b -> b { currentPiece = rotateClockwise (currentPiece b) })
@@ -48,6 +51,14 @@ modifyBoard f t = t { tBoard = f (tBoard t) }
 
 differences :: Eq a => [a] -> [a] -> ([a], [a])  -- (items in first but not second, items in second but not first)
 differences l r = (l \\ r, r \\ l)
+
+
+calculateScore :: Int -> Level -> Score
+calculateScore 0 _ = 0
+calculateScore 1 (Level l) = Score $ fromIntegral $ 40 * (l + 1)
+calculateScore 2 (Level l) = Score $ fromIntegral $ 100 * (l + 1)
+calculateScore 3 (Level l) = Score $ fromIntegral $ 300 * (l + 1)
+calculateScore 4 (Level l) = Score $ fromIntegral $ 1200 * (l + 1)
 
 
 -----------------------------------------------------------
@@ -79,14 +90,14 @@ emptyGame = Tetris 0 0 . Board (Piece O North (-10, -10)) [] []
 -- Row removal
 -----------------------------------------------------------
 
-endFall :: Board -> Board
+endFall :: Board -> (Board, [Row])
 endFall b = let nextPiece:rest = pieceStream b
-                newGround = removeFullRows (dimensions b) groundWithNewPiece
+                (newGround, removedRows) = removeFullRows (dimensions b) groundWithNewPiece
                 groundWithNewPiece = getSquares (currentPiece b) ++ ground b
-            in b { currentPiece = nextPiece, pieceStream = rest, ground = newGround }
+            in (b { currentPiece = nextPiece, pieceStream = rest, ground = newGround }, removedRows)
 
-removeFullRows :: BoardDimensions -> [Square] -> [Square]
-removeFullRows dims squares = removeRows ys squares
+removeFullRows :: BoardDimensions -> [Square] -> ([Square], [Row])
+removeFullRows dims squares = (removeRows ys squares, ys)
     where ys = fullRows dims (map sPos squares)
 
 removeRows :: [Row] -> [Square] -> [Square]
@@ -100,7 +111,7 @@ removeRow y squares = squaresBelowLine ++ map (moveSquareDown 1) squaresAboveLin
 
 fullRows :: BoardDimensions -> [Position] -> [Row]
 fullRows (w, h) positions = do
-    y <- [0 .. fromBH h]
+    y <- [0 .. maxRow h]
     guard $ rowIsFull w y positions
     return y
 
@@ -128,7 +139,7 @@ currentPieceCanBeMovedRight b = not $ any (\s -> s `isLeftOfEdge` b || s `isLeft
 
 
 currentPieceCanBeMovedDown :: Board -> Bool
-currentPieceCanBeMovedDown b = any (`isTouchingGround` b) (getSquares $ currentPiece b)
+currentPieceCanBeMovedDown b = not $ any (`isTouchingGround` b) (getSquares $ currentPiece b)
 
 
 isTouchingGround :: Square -> Board -> Bool
@@ -162,7 +173,7 @@ startingPiece w s = Piece s rot (col, 0)
                             L -> (halfway, East)
                             S -> (halfway, North)
                             Z -> (halfway, North)
-          halfway = floor $ (fromBW w) / 2
+          halfway = floor $ (fromIntegral $ fromBW w) / 2
 
 getSquares :: Piece -> [Square]
 getSquares (Piece s r p) = squares

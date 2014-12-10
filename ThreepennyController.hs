@@ -1,4 +1,4 @@
-module ThreepennyController (tetrisEvent, bindAndFire) where
+module ThreepennyController (tetrisEvent, bindNow) where
 
 import Graphics.UI.Threepenny.Core
 import qualified Graphics.UI.Threepenny as UI
@@ -15,7 +15,7 @@ tetrisEvent beginning window = do
     (timer, timerEvent) <- window # every 1000
     let keyFuncs = fmap (reactToKey . KC) (UI.keydown body)
     let timerFuncs = fmap reactToTimer timerEvent
-    let allFuncs = unionWith const timerFuncs keyFuncs
+    let allFuncs = union timerFuncs keyFuncs
     let pairFuncs = fmap (\f -> \(_, t) -> (t, f t)) allFuncs
     accumE (undefined, beginning) pairFuncs
 
@@ -29,16 +29,20 @@ reactToKey kc
     | otherwise = id
 
 
-reactToTimer :: () -> (Tetris -> Tetris)
-reactToTimer () = moveCurrentPiece Down
+reactToTimer :: a -> (Tetris -> Tetris)
+reactToTimer _ = moveCurrentPiece Down
 
 
 -----------------------------------------------------------
 -- library functions
 -----------------------------------------------------------
 
-bindAndFire :: (a -> UI ()) -> a -> Event a -> UI ()
-bindAndFire f x e = do
+union :: Event a -> Event a -> Event a
+union = unionWith const
+
+
+bindNow :: (a -> UI ()) -> a -> Event a -> UI ()
+bindNow f x e = do
     (startEvent, fire) <- liftIO newEvent
     onEvent (unionWith const startEvent e) f
     liftIO $ fire x
@@ -49,7 +53,7 @@ newtype Timer = Timer Int
 every :: Int -> Window -> UI (Timer, Event ())
 every ms window = do
     let elementId = "timerElement"
-    el <- UI.div # set UI.id_ elementId
+    el <- UI.div # set UI.id_ elementId # set UI.style [("display", "none")]
     getBody window #+ [return el]
     let eventName = "gameTimer"
     let js = unlines ["setInterval(function(){",

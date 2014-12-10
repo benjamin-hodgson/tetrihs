@@ -42,7 +42,7 @@ prop_removeRowAlwaysLowersPeak r squares = squares /= [] && any (\s -> sPos s `i
     where getPeakRow = minimum . map (snd . sPos)
 
 
-prop_removeTwoFullRows = (removeFullRows (BW 2, BH 3) inputSquares) === []
+prop_removeTwoFullRows = (removeFullRows (BW 2, BH 3) inputSquares) === ([], [0, 1])
     where inputSquares = [Square O (Col 0, Row 0), Square O (Col 1, Row 0), Square O (Col 0, Row 1), Square O (Col 1, Row 1)]
 
 prop_queryTwoFullRows = fullRows (BW 2, BH 3) [(Col 0, Row 0), (Col 1, Row 0), (Col 0, Row 1), (Col 1, Row 1)] === [0, 1]
