@@ -237,7 +237,7 @@ newtype BoardWidth = BW { fromBW :: Int } deriving (Num, Real, Integral, Enum, E
 newtype BoardHeight = BH { fromBH :: Int } deriving (Num, Real, Integral, Enum, Eq, Ord, Show)
 
 newtype Score = Score Integer deriving Num
-newtype Level = Level Int deriving Num
+newtype Level = Level { fromLevel :: Int } deriving (Show, Eq, Num, Ord)
 
 
 instance Random Shape where
