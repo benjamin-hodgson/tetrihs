@@ -55,6 +55,7 @@ wasLevelUp t1 t2 = tLevel t2 > tLevel t1
 
 speedUpTimer :: Window -> (Timer -> UI ()) -> Timer -> Level -> UI ()
 speedUpTimer w action t l = do
+    cancel t
     every (floor $ 1000 / (fromIntegral (fromLevel l) * speedUpFactor)) action w
     return ()
 
