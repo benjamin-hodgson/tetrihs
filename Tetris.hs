@@ -4,8 +4,8 @@ module Tetris where
 
 import System.Random (RandomGen, Random(..))
 import Control.Monad (guard)
-import Prelude hiding (Left, Right)
 import Data.List ((\\))
+import Data.Maybe (fromMaybe)
 
 
 -----------------------------------------------------------
@@ -13,6 +13,7 @@ import Data.List ((\\))
 -----------------------------------------------------------
 
 data Tetris = Tetris { tScore :: Score, tTotalLinesRemoved :: Int, tBoard :: Board }
+type TetrisOperation = Tetris -> Tetris
 
 
 data Board = Board {
@@ -23,29 +24,21 @@ data Board = Board {
 }
 
 
-moveCurrentPiece :: Direction -> Tetris -> Tetris
-moveCurrentPiece Right t = modifyBoard (\b -> if currentPieceCanBeMovedRight b
-                                              then b { currentPiece = moveRight (currentPiece b) }
-                                              else b) t
-moveCurrentPiece Left t = modifyBoard (\b -> if currentPieceCanBeMovedLeft b
-                                             then b { currentPiece = moveLeft (currentPiece b) }
-                                             else b) t
-moveCurrentPiece Down t = if currentPieceCanBeMovedDown b
-                          then t { tBoard = b { currentPiece = moveDown (currentPiece b) } }
-                          else t { tBoard = bAfterFall, tScore = newScore, tTotalLinesRemoved = tTotalLinesRemoved t + length removedRows }
+moveCurrentPiece :: Command -> TetrisOperation
+moveCurrentPiece MoveDown t = case tryMoveCurrentPiece MoveDown b of
+                               Just newB -> t { tBoard = b { currentPiece = move MoveDown (currentPiece b) } }
+                               Nothing -> t { tBoard = bAfterFall, tScore = newScore, tTotalLinesRemoved = tTotalLinesRemoved t + length removedRows }
     where b = tBoard t
           (bAfterFall, removedRows) = endFall b
           newScore = (tScore t) + calculateScore (length removedRows) (tLevel t)
-
-rotateCurrentPiece :: Tetris -> Tetris
-rotateCurrentPiece = modifyBoard (\b -> b { currentPiece = rotateClockwise (currentPiece b) })
+moveCurrentPiece c t = modifyBoard (\b -> fromMaybe b $ tryMoveCurrentPiece c b) t
 
 
 getAllSquares :: Tetris -> [Square]
 getAllSquares (Tetris { tBoard = b }) = getSquares (currentPiece b) ++ ground b
 
 
-modifyBoard :: (Board -> Board) -> (Tetris -> Tetris)
+modifyBoard :: (Board -> Board) -> TetrisOperation
 modifyBoard f t = t { tBoard = f (tBoard t) }
 
 
@@ -55,6 +48,10 @@ differences l r = (l \\ r, r \\ l)
 
 tLevel :: Tetris -> Level
 tLevel Tetris { tTotalLinesRemoved = x } = Level $ x `div` 10
+
+
+wasLevelUp :: Tetris -> Tetris -> Bool
+wasLevelUp t1 t2 = tLevel t2 > tLevel t1
 
 
 calculateScore :: Int  -- number of lines removed
@@ -133,40 +130,31 @@ data Piece = Piece { pShape :: Shape, pRot :: Rotation, pPos :: Position } deriv
 data Square = Square { sOriginalShape :: Shape, sPos :: Position } deriving (Show, Eq)
 
 
-currentPieceCanBeMovedLeft :: Board -> Bool
-currentPieceCanBeMovedLeft b = not $ any (\s -> s `isRightOfEdge` b || s `isRightOfGround` b) (getSquares $ currentPiece b)
-    where isRightOfEdge square board = fromCol (fst (sPos square)) == 0
+tryMoveCurrentPiece :: Command -> Board -> Maybe Board
+tryMoveCurrentPiece c = tryModifyPiece (move c)
 
+tryModifyPiece :: (Piece -> Piece) -> Board -> Maybe Board
+tryModifyPiece f b = if isValidPiece newPiece b
+                     then Just b { currentPiece = newPiece }
+                     else Nothing
+    where newPiece = f (currentPiece b)
 
-currentPieceCanBeMovedRight :: Board -> Bool
-currentPieceCanBeMovedRight b = not $ any (\s -> s `isLeftOfEdge` b || s `isLeftOfGround` b) (getSquares $ currentPiece b)
-    where isLeftOfEdge square board = fromCol (fst (sPos square)) == fromBW (fst (dimensions b)) - 1
+isValidPiece :: Piece -> Board -> Bool
+isValidPiece p b = not $ p `isOverlappingGround` b || p `isOffBoard` b
+    where isOverlappingGround p b = (map sPos $ getSquares p) `overlaps` (map sPos $ ground b)
+          isOffBoard p b = any (\s -> (sPos s) `outside` (dimensions b)) $ getSquares p
 
+overlaps :: Eq a => [a] -> [a] -> Bool
+xs `overlaps` ys = not $ null [() | x <- xs, y <- ys, x == y]
 
-currentPieceCanBeMovedDown :: Board -> Bool
-currentPieceCanBeMovedDown b = not $ any (`isTouchingGround` b) (getSquares $ currentPiece b)
+outside :: Position -> BoardDimensions -> Bool
+(x, y) `outside` (w, h) = x < 0 || x `isOffRight` w || y `isOffBottom` h
 
-
-isTouchingGround :: Square -> Board -> Bool
-isTouchingGround s1 b = any (\s2 -> (sPos s1) `isDirectlyAbove` (sPos s2)) (ground b) || (sPos s1) `isAtBottomOf` b
-    where isDirectlyAbove p1 p2 = p1 == (posUp 1 p2)
-          isAtBottomOf p b = fromRow (snd p) == fromBH (snd $ dimensions b) - 1
-isLeftOfGround :: Square -> Board -> Bool
-isLeftOfGround s1 b = any (\s2 -> (sPos s1) `isDirectlyLeft` (sPos s2)) (ground b)
-    where isDirectlyLeft p1 p2 = p1 == (posLeft 1 p2)
-isRightOfGround :: Square -> Board -> Bool
-isRightOfGround s1 b = any (\s2 -> (sPos s1) `isDirectlyRight` (sPos s2)) (ground b)
-    where isDirectlyRight p1 p2 = p1 == (posRight 1 p2)
-
-
-moveDown :: Piece -> Piece
-moveDown p = p { pPos = posDown 1 (pPos p) }
-moveLeft :: Piece -> Piece
-moveLeft p = p { pPos = posLeft 1 (pPos p) }
-moveRight :: Piece -> Piece
-moveRight p = p { pPos = posRight 1 (pPos p) }
-rotateClockwise :: Piece -> Piece
-rotateClockwise (Piece s r p) = Piece s (rotClockwise r) p
+move :: Command -> Piece -> Piece
+move MoveDown p = p { pPos = posDown 1 (pPos p) }
+move MoveLeft p = p { pPos = posLeft 1 (pPos p) }
+move MoveRight p = p { pPos = posRight 1 (pPos p) }
+move Rotate p = p { pRot = rotClockwise (pRot p) }
 
 startingPiece :: BoardWidth -> Shape -> Piece
 startingPiece w s = Piece s rot (col, 0)
@@ -226,7 +214,7 @@ matchRotation r n e s w = case r of North -> n
 
 data Shape = O | I | T | J | L | S | Z deriving (Show, Enum, Bounded, Eq)
 data Rotation = North | East | South | West deriving (Show, Enum, Bounded, Eq)
-data Direction = Right | Down | Left deriving (Show, Enum, Bounded, Eq)
+data Command = MoveRight | MoveDown | MoveLeft | Rotate deriving (Show, Enum, Bounded, Eq)
 
 type Position = (Col, Row)  -- (x, y), origin at the top left corner
 newtype Row = Row {fromRow :: Int} deriving (Num, Real, Integral, Enum, Eq, Ord, Show)
@@ -263,6 +251,12 @@ isAboveRow :: Position -> Row -> Bool
 
 isBelowRow :: Position -> Row -> Bool
 (_, y1) `isBelowRow` y2 = y1 > y2
+
+isOffRight :: Col -> BoardWidth -> Bool
+(Col x) `isOffRight` (BW w) = x >= w
+
+isOffBottom :: Row -> BoardHeight -> Bool
+(Row y) `isOffBottom` (BH h) = y >= h
 
 rotClockwise :: Rotation -> Rotation
 rotClockwise North = East

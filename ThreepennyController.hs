@@ -2,10 +2,10 @@ module ThreepennyController (tetrisEvent, bindNow) where
 
 import Graphics.UI.Threepenny.Core
 import qualified Graphics.UI.Threepenny as UI
-import Prelude hiding (Left, Right)
+import Control.Applicative ((<$>), (<*>))
 
 
-import Tetris (Tetris, Direction(..), Level, tLevel, fromLevel, moveCurrentPiece, rotateCurrentPiece)
+import Tetris (Tetris, TetrisOperation, Command(..), Level(..), wasLevelUp, isGameOver, tLevel, fromLevel, moveCurrentPiece)
 
 
 speedUpFactor = 3/2
@@ -14,20 +14,21 @@ speedUpFactor = 3/2
 tetrisEvent :: Tetris -> Window -> UI (Event (Tetris, Tetris))  -- (old, new) so you can diff them
 tetrisEvent beginning window = do
     keyFuncs <- fmap (fmap reactToKey) $ keydownEvent window
-
     (timerEvent, fireTimer) <- liftIO newEvent
-    let timerFuncs = fmap reactToTimer timerEvent
 
+    let timerFuncs = fmap reactToTimer timerEvent
     let allFuncs = union timerFuncs keyFuncs
+    let levelFuncs = fmap (\f -> \t -> tLevel (f t)) allFuncs
     let pairFuncs = fmap (\f -> \(_, t) -> (t, f t)) allFuncs
+
     pairEvent <- accumE (undefined, beginning) pairFuncs
 
     timerBehaviour <- stepper (Timer 0) timerEvent
     let levelUpEvent = fmap (\(t1, t2) -> tLevel t2) $ filterE (uncurry wasLevelUp) pairEvent
-    let levelUpEventWithCurrentTimer = apply (fmap (,) timerBehaviour) levelUpEvent
+    let timerLevelEvent = apply (fmap (,) timerBehaviour) levelUpEvent
 
-    window # every 1000 (liftIO . fireTimer)
-    onEvent levelUpEventWithCurrentTimer (uncurry $ speedUpTimer window (liftIO . fireTimer))
+    setTimer window (liftIO . fireTimer) (Timer 0) (Level 1)
+    onEvent timerLevelEvent (uncurry $ setTimer window (liftIO . fireTimer))
 
     return pairEvent
 
@@ -37,27 +38,24 @@ keydownEvent = fmap mkKeydownEvent . getBody
     where mkKeydownEvent = fmap KC . UI.keydown
 
 
-reactToKey :: KeyCode -> (Tetris -> Tetris)
+reactToKey :: KeyCode -> TetrisOperation
 reactToKey kc
-    | isLeftArrow kc = moveCurrentPiece Left
-    | isUpArrow kc = rotateCurrentPiece
-    | isRightArrow kc = moveCurrentPiece Right
-    | isDownArrow kc = moveCurrentPiece Down
+    | isLeftArrow kc = moveCurrentPiece MoveLeft
+    | isUpArrow kc = moveCurrentPiece Rotate
+    | isRightArrow kc = moveCurrentPiece MoveRight
+    | isDownArrow kc = moveCurrentPiece MoveDown
     | otherwise = id
 
 
-reactToTimer :: Timer -> (Tetris -> Tetris)
-reactToTimer x = moveCurrentPiece Down
+reactToTimer :: Timer -> TetrisOperation
+reactToTimer _ = moveCurrentPiece MoveDown
 
-
-wasLevelUp :: Tetris -> Tetris -> Bool
-wasLevelUp t1 t2 = tLevel t2 > tLevel t1
-
-speedUpTimer :: Window -> (Timer -> UI ()) -> Timer -> Level -> UI ()
-speedUpTimer w action t l = do
+setTimer :: Window -> (Timer -> UI ()) -> Timer -> Level -> UI ()
+setTimer w action t l = do
     cancel t
-    every (floor $ 1000 / (fromIntegral (fromLevel l) * speedUpFactor)) action w
+    every (floor $ 1500 / (fromIntegral (fromLevel l) * speedUpFactor)) action w
     return ()
+
 
 -----------------------------------------------------------
 -- library functions

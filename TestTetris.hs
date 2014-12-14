@@ -9,22 +9,18 @@ import Data.List (nub)
 
 prop_allPiecesHaveFourSquares p = length (getSquares p) == 4
 
-prop_moveLeftPreservesShape p = shapesAreEqual p (moveLeft p)
-prop_moveRightPreservesShape p = shapesAreEqual p (moveRight p)
-prop_moveDownPreservesShape p = shapesAreEqual p (moveDown p)
+prop_movePreservesShape c p = shapesAreEqual p (move c p)
+prop_movePreservesRotation c p = c /= Rotate ==> rotationsAreEqual p (move c p)
 
-prop_moveLeftPreservesRotation p = rotationsAreEqual p (moveLeft p)
-prop_moveRightPreservesRotation p = rotationsAreEqual p (moveRight p)
-prop_moveDownPreservesRotation p = rotationsAreEqual p (moveDown p)
+prop_moveLeftPreservesRow p = rowsAreEqual p (move MoveLeft p)
+prop_moveRightPreservesRow p = rowsAreEqual p (move MoveRight p)
+prop_moveDownPreservesCol p = colsAreEqual p (move MoveDown p)
 
-prop_moveLeftPreservesRow p = rowsAreEqual p (moveLeft p)
-prop_moveRightPreservesRow p = rowsAreEqual p (moveRight p)
-prop_moveDownPreservesCol p = colsAreEqual p (moveDown p)
+prop_moveLeftThenRightIsIdentity p = (move MoveLeft . move MoveRight) p == p
+prop_moveRightThenLeftIsIdentity p = (move MoveRight . move MoveLeft) p == p
 
-prop_moveLeftThenRightReturnsSamePiece p = (moveLeft . moveRight) p == p
-
-prop_rotateClockwisePreservesShape p = shapesAreEqual p (rotateClockwise p)
-prop_rotateClockwisePreservesPosition p = positionsAreEqual p (rotateClockwise p)
+prop_rotatePreservesShape p = shapesAreEqual p (move Rotate p)
+prop_rotatePreservesPosition p = positionsAreEqual p (move Rotate p)
 
 prop_fullRowsReturnsHighestRowsFirst (Positive h) positions = isSorted $ fullRows (1, h) positions
 prop_fullRowsReturnsNoDuplicates (Positive h) positions = let result = fullRows (1, h) positions
@@ -54,6 +50,10 @@ prop_differencesWhenLeftListIsEmpty xs = differences [] xs == ([], xs)
 prop_removedItemsIsSubsetOfLeft xs ys = fst (differences xs ys) `isSubsetOf` xs
 prop_addedItemsIsSubsetOfRight xs ys = snd (differences xs ys) `isSubsetOf` ys
 
+prop_noOverlapIfLeftListIsEmpty xs = overlaps [] xs == False
+prop_noOverlapIfRightListIsEmpty xs = overlaps xs [] == False
+prop_sameListOverlaps (NonEmpty xs) = overlaps xs xs == True
+
 
 shapesAreEqual (Piece s1 _ _) (Piece s2 _ _) = s1 == s2
 rotationsAreEqual (Piece _ r1 _) (Piece _ r2 _) = r1 == r2
@@ -71,6 +71,8 @@ xs `isSubsetOf` ys = all (`elem` ys) xs
 instance Arbitrary Shape where
     arbitrary = arbitraryBoundedEnum
 instance Arbitrary Rotation where
+    arbitrary = arbitraryBoundedEnum
+instance Arbitrary Command where
     arbitrary = arbitraryBoundedEnum
 instance Arbitrary Piece where
     arbitrary = Piece <$> arbitrary <*> arbitrary <*> arbitrary
