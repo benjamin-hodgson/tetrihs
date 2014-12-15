@@ -26,9 +26,13 @@ tetrisEvent beginning window = do
     timerBehaviour <- stepper (Timer 0) timerEvent
     let levelUpEvent = fmap (\(t1, t2) -> tLevel t2) $ filterE (uncurry wasLevelUp) pairEvent
     let timerLevelEvent = apply (fmap (,) timerBehaviour) levelUpEvent
+    let gameOverEvent = filterE (isGameOver . snd) pairEvent
+    let timerGameOverEvent = apply (fmap (,) timerBehaviour) gameOverEvent
 
     setTimer window (liftIO . fireTimer) (Timer 0) (Level 1)
     onEvent timerLevelEvent (uncurry $ setTimer window (liftIO . fireTimer))
+
+    onEvent timerGameOverEvent (cancel . fst)
 
     return pairEvent
 

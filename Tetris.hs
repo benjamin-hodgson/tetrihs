@@ -38,6 +38,12 @@ getAllSquares :: Tetris -> [Square]
 getAllSquares (Tetris { tBoard = b }) = getSquares (currentPiece b) ++ ground b
 
 
+isGameOver :: Tetris -> Bool
+isGameOver t = not $ isValidPiece nextPiece b
+    where b = tBoard t
+          nextPiece:_ = pieceStream b
+
+
 modifyBoard :: (Board -> Board) -> TetrisOperation
 modifyBoard f t = t { tBoard = f (tBoard t) }
 

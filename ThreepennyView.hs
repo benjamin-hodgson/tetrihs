@@ -11,7 +11,8 @@ import Tetris (
     tScore, tLevel,
     sOriginalShape, sPos,
     maxCol, maxRow, fromRow, fromCol,
-    differences, getAllSquares
+    differences, getAllSquares,
+    isGameOver
     )
 import Graphics.UI.Threepenny.Core
 import qualified Graphics.UI.Threepenny as UI
@@ -59,10 +60,20 @@ createGrid (w, h) = [[buildDiv x y | x <- [0 .. maxCol w]] | y <- [0 .. maxRow h
 
 
 drawGame :: Tetris -> Tetris -> Window -> UI ()
-drawGame oldT newT w = let (removedSquares, addedSquares) = differences (getAllSquares oldT) (getAllSquares newT)
-                           score = tScore newT
-                           level = tLevel newT
-                       in updateScreen removedSquares addedSquares score level w
+drawGame oldT newT w
+    | isGameOver newT = drawGameOver w
+    | otherwise = let (removedSquares, addedSquares) = differences (getAllSquares oldT) (getAllSquares newT)
+                      score = tScore newT
+                      level = tLevel newT
+                  in updateScreen removedSquares addedSquares score level w
+
+
+drawGameOver :: Window -> UI ()
+drawGameOver w = do
+    s <- UI.span # set UI.text "Game over!" # set UI.style styles
+    getBody w #+ [return s]
+    return ()
+        where styles = [("position", "relative"), ("z-index", "100"), ("margin-left", "auto"), ("margin-right", "auto")]
 
 
 updateScreen removedSquares addedSquares score level w = do
